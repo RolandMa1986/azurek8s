@@ -1,0 +1,435 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"vmNamePrefix": {
+			"type": "string",
+			"defaultValue": "master-",
+			"metadata": {
+				"description": "The name of your VM master node."
+			}
+		},
+		"vmssName": {
+			"type": "string",
+			"defaultValue": "node",
+			"metadata": {
+				"description": "The name of your VMSS cluster."
+			}
+		},
+		"location": {
+			"type": "string",
+			"defaultValue": "[resourceGroup().location]",
+			"metadata": {
+				"description": "Location for all resources."
+			}
+		},
+		"adminUsername": {
+			"type": "string",
+			"metadata": {
+				"description": "Username for the Virtual Machine."
+			}
+		},
+		"adminKey": {
+			"type": "securestring",
+			"metadata": {
+				"description": "SSH Key for the Virtual Machine."
+			}
+		},
+		"defaultMasterCount": {
+			"type": "int",
+			"defaultValue": 1,
+			"metadata": {
+				"description": "The default instances count of master"
+			}
+		},
+		"defaultNodeCount": {
+			"type": "int",
+			"defaultValue": 1,
+			"metadata": {
+				"description": "The initial node size of your VMSS cluster."
+			}
+		},
+		"minNodeCount": {
+			"type": "int",
+			"defaultValue": 1,
+			"metadata": {
+				"description": "The min node size of your VMSS cluster."
+			}
+		},
+		"maxNodeCount": {
+			"type": "int",
+			"defaultValue": 20,
+			"metadata": {
+				"description": "The max node size of your VMSS cluster."
+			}
+		},
+		"dnsLabelPrefix": {
+			"type": "string",
+			"defaultValue": "[toLower(concat('k8s-cluster-', uniqueString(resourceGroup().id)))]",
+			"metadata": {
+				"description": "Unique DNS Name for the Public IP used to access the Virtual Machine."
+			}
+		},
+		"vmSize": {
+			"type": "string",
+			"defaultValue": "Standard_DS2_v2",
+			"metadata": {
+				"description": "The size of the VM"
+			}
+		},
+		"virtualNetworkName": {
+			"type": "string",
+			"defaultValue": "vNetwork",
+			"metadata": {
+				"description": "Name of the Virtual Network"
+			}
+		},
+		"subnetName": {
+			"type": "string",
+			"defaultValue": "Subnet",
+			"metadata": {
+				"description": "Name of the subnet in the virtual network"
+			}
+		},
+		"vmssSubnetName": {
+			"type": "string",
+			"defaultValue": "nodeSubnet",
+			"metadata": {
+				"description": "Name of the VMSS subnet in the virtual network"
+			}
+		},
+		"publicLBName": {
+			"type": "string",
+			"defaultValue": "publicLB",
+			"metadata": {
+				"description": "Internal Load Balancer name"
+			}
+		}
+	},
+	"variables": {
+		"publicIPAddressName": "[concat(parameters('publicLBName'), 'IP' )]",
+		"availabilitySetName": "master-AvSet",
+		"networkInterfaceName": "[concat(parameters('vmNamePrefix'),'Interface')]",
+		"subnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), parameters('subnetName'))]",
+		"vmssSubnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), parameters('vmssSubnetName'))]",
+		"osDiskType": "Standard_LRS",
+		"publicLBID": "[resourceId('Microsoft.Network/loadBalancers',parameters('publicLBName'))]"
+	},
+	"resources": [
+		{
+			"type": "Microsoft.Network/virtualNetworks",
+			"apiVersion": "2019-11-01",
+			"name": "[parameters('virtualNetworkName')]",
+			"location": "[parameters('location')]",
+			"properties": {
+				"addressSpace": {
+					"addressPrefixes": [
+						"10.0.0.0/16"
+					]
+				},
+				"subnets": [
+					{
+						"name": "[parameters('vmssSubnetName')]",
+						"properties": {
+							"addressPrefix": "10.0.0.0/24"
+						}
+					},
+					{
+						"name": "[parameters('subnetName')]",
+						"properties": {
+							"addressPrefix": "10.0.1.0/24"
+						}
+					}
+				]
+			}
+		},
+		{
+			"type": "Microsoft.Network/publicIPAddresses",
+			"apiVersion": "2019-11-01",
+			"name": "[concat(parameters('vmNamePrefix'),copyindex(),'IP')]",
+			"location": "[parameters('location')]",
+			"copy": {
+				"name": "nicLoop",
+				"count": "[parameters('defaultMasterCount')]"
+			},
+			"properties": {
+				"publicIPAllocationMethod": "Dynamic",
+				"publicIPAddressVersion": "IPv4",
+				"dnsSettings": {
+					"domainNameLabel": "[concat(parameters('dnsLabelPrefix'), copyindex())]"
+				},
+				"idleTimeoutInMinutes": 10
+			}
+		},
+		{
+			"type": "Microsoft.Network/networkInterfaces",
+			"apiVersion": "2019-11-01",
+			"name": "[concat(variables('networkInterfaceName'), copyindex())]",
+			"location": "[parameters('location')]",
+			"copy": {
+				"name": "nicLoop",
+				"count": "[parameters('defaultMasterCount')]"
+			},
+			"dependsOn": [
+				"[resourceId('Microsoft.Network/virtualNetworks/', parameters('virtualNetworkName'))]",
+				"[resourceId('Microsoft.Network/publicIPAddresses',concat(parameters('vmNamePrefix'),copyindex(),'IP'))]"
+			],
+			"properties": {
+				"ipConfigurations": [
+					{
+						"name": "ipconfig1",
+						"properties": {
+							"subnet": {
+								"id": "[variables('subnetRef')]"
+							},
+							"privateIPAllocationMethod": "Dynamic",
+							"publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses',concat(parameters('vmNamePrefix'),copyindex(),'IP'))]"
+                            }
+						}
+					}
+				]
+			}
+		},
+		{
+			"type": "Microsoft.Network/publicIPAddresses",
+			"apiVersion": "2019-11-01",
+			"name": "[variables('publicIPAddressName')]",
+			"location": "[parameters('location')]",
+			"properties": {
+				"publicIPAllocationMethod": "Dynamic",
+				"publicIPAddressVersion": "IPv4",
+				"dnsSettings": {
+					"domainNameLabel": "[parameters('dnsLabelPrefix')]"
+				},
+				"idleTimeoutInMinutes": 10
+			}
+		},
+		{
+			"apiVersion": "2018-06-01",
+			"name": "[parameters('publicLBName')]",
+			"type": "Microsoft.Network/loadBalancers",
+			"location": "[parameters('location')]",
+			"dependsOn": [
+				"[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPAddressName'))]"
+			],
+			"properties": {
+				"frontendIPConfigurations": [
+				{
+					"name": "LoadBalancerFrontEnd",
+					"properties": {
+						"publicIPAddress": {
+							"id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))]"
+						}
+					}
+				}
+				],
+				"backendAddressPools": [
+				{
+					"name": "BackendPoolNode"
+				}
+				],
+				"loadBalancingRules": [
+				{
+					"name": "LBRule",
+					"properties": {
+					"frontendIPConfiguration": {
+						"id": "[concat(variables('publicLBID'),'/frontendIPConfigurations/LoadBalancerFrontEnd')]"
+					},
+					"backendAddressPool": {
+						"id": "[concat(variables('publicLBID'),'/backendAddressPools/BackendPoolNode')]"
+					},
+					"protocol": "Tcp",
+					"frontendPort": 80,
+					"backendPort": 80,
+					"enableFloatingIP": false,
+					"idleTimeoutInMinutes": 5,
+					"probe": {
+						"id": "[concat(variables('publicLBID'),'/probes/tcpProbe')]"
+					}
+					}
+				}
+				],
+				"probes": [
+				{
+					"name": "tcpProbe",
+					"properties": {
+					"protocol": "Tcp",
+					"port": 80,
+					"intervalInSeconds": 5,
+					"numberOfProbes": 2
+					}
+				}
+				]
+			}
+		},
+		{
+			"type": "Microsoft.Compute/availabilitySets",
+			"name": "[variables('availabilitySetName')]",
+			"apiVersion": "2016-04-30-preview",
+			"location": "[parameters('location')]",
+			"properties": {
+				"platformFaultDomainCount": 2,
+				"platformUpdateDomainCount": 2,
+				"managed": true
+			}
+		},
+		{
+			"type": "Microsoft.Compute/virtualMachines",
+			"apiVersion": "2019-07-01",
+			"name": "[concat(parameters('vmNamePrefix'), copyindex())]",
+			"location": "[parameters('location')]",
+			"copy": {
+				"name": "virtualMachineLoop",
+				"count": "[parameters('defaultMasterCount')]"
+			},
+			"dependsOn": [
+				"[concat('Microsoft.Network/networkInterfaces/', variables('networkInterfaceName'), copyindex())]",
+				"[concat('Microsoft.Compute/availabilitySets/', variables('availabilitySetName'))]",
+				"[concat('Microsoft.Compute/virtualMachineScaleSets/', parameters('vmssName'))]"
+			],
+			"properties": {
+				"availabilitySet": {
+					"id": "[resourceId('Microsoft.Compute/availabilitySets',variables('availabilitySetName'))]"
+				},
+				"hardwareProfile": {
+					"vmSize": "[parameters('vmSize')]"
+				},
+				"storageProfile": {
+					"osDisk": {
+						"createOption": "FromImage",
+						"managedDisk": {
+							"storageAccountType": "[variables('osDiskType')]"
+						}
+					},
+					"imageReference": {
+						"publisher": "Canonical",
+						"offer": "UbuntuServer",
+						"sku": "18.04-LTS",
+						"version": "latest"
+					}
+				},
+				"networkProfile": {
+					"networkInterfaces": [
+						{
+							"id": "[resourceId('Microsoft.Network/networkInterfaces',concat(variables('networkInterfaceName'),copyindex()))]"
+						}
+					]
+				},
+				"osProfile": {
+					"computerName": "[concat(parameters('vmNamePrefix'), copyindex())]",
+					"adminUsername": "[parameters('adminUsername')]",
+					"adminPassword": "[parameters('adminKey')]",
+					"linuxConfiguration": {
+						"disablePasswordAuthentication": true,
+						"ssh": {
+							"publicKeys": [
+								{
+									"path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
+									"keyData": "[parameters('adminKey')]"
+								}
+							]
+						}
+					}
+				}
+			}
+		},
+		{
+			"type": "Microsoft.Compute/virtualMachineScaleSets",
+			"apiVersion": "2019-07-01",
+			"name": "[parameters('vmssName')]",
+			"tags": {
+				"cluster-autoscaler-enabled": "true",
+				"cluster-autoscaler-name": "[resourceGroup().name]",
+				"min": "[parameters('minNodeCount')]",
+				"max": "[parameters('maxNodeCount')]",
+				"poolName": "[parameters('vmssName')]"
+			},
+			"dependsOn": [
+				"[concat('Microsoft.Network/virtualNetworks/', parameters('virtualNetworkName'))]",
+        		"[concat('Microsoft.Network/loadBalancers/', parameters('publicLBName'))]"
+			],
+			"location": "[parameters('location')]",
+			"sku": {
+				"name": "[parameters('vmSize')]",
+				"tier": "Standard",
+				"capacity": "[parameters('defaultNodeCount')]"
+			},
+			"properties": {
+				"overprovision": false,
+				"upgradePolicy": {
+					"mode": "Manual"
+				},
+				"virtualMachineProfile": {
+					"storageProfile": {
+						"osDisk": {
+							"createOption": "FromImage",
+							"caching": "ReadWrite"
+						},
+						"imageReference": {
+							"publisher": "Canonical",
+							"offer": "UbuntuServer",
+							"sku": "18.04-LTS",
+							"version": "latest"
+						}
+					},
+					"osProfile": {
+						"computerNamePrefix": "[parameters('vmssName')]",
+						"adminUsername": "[parameters('adminUsername')]",
+						"adminPassword": "[parameters('adminKey')]",
+						"linuxConfiguration": {
+							"disablePasswordAuthentication": true,
+							"ssh": {
+								"publicKeys": [
+									{
+										"path": "[concat('/home/', parameters('adminUsername'), '/.ssh/authorized_keys')]",
+										"keyData": "[parameters('adminKey')]"
+									}
+								]
+							}
+						}
+					},
+					"networkProfile": {
+						"networkInterfaceConfigurations": [
+							{
+								"name": "[concat(parameters('vmssName'),'nic')]",
+								"properties": {
+									"primary": true,
+									"ipConfigurations": [
+										{
+											"name": "[concat('ipconfigVmss', parameters('vmssName'))]",
+											"properties": {
+												"subnet": {
+													"id": "[variables('vmssSubnetRef')]"
+												},
+												"loadBalancerBackendAddressPools": [
+													{
+													"id": "[concat(variables('publicLBID'), '/backendAddressPools/BackendPoolNode')]"
+													}
+												]
+											}
+										}
+									]
+								}
+							}
+						]
+					}
+				}
+			}
+		}
+	],
+	"outputs": {
+		"adminUsername": {
+			"type": "string",
+			"value": "[parameters('adminUsername')]"
+		},
+		"hostname": {
+			"type": "string",
+			"value": "[reference(variables('publicIPAddressName')).dnsSettings.fqdn]"
+		},
+		"sshCommand": {
+			"type": "string",
+			"value": "[concat('ssh ', parameters('adminUsername'), '@', reference(variables('publicIPAddressName')).dnsSettings.fqdn)]"
+		}
+	}
+}

@@ -1,0 +1,18 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"vmNamePrefix": {
+			"value": "master-"
+		},
+		"vmssName": {
+			"value": "node"
+		},
+		"adminUsername": {
+			"value": "kubesphere"
+		},
+		"adminKey": {
+			"value": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDDNjwTqgl7B14C5yh9DqQKvh6XdOZcPFGMiW9EP0RIEJO4wiSQ5CHy73HxrW6YzVfcNzDxuDhhhRzYQCggVJlT4cH5iWznPC2nzr47CkXDJ7h71kYoZN0hXO2ChPn6az6CE7+pnBPC7VjzDr+BrjjYBB6L8lvPYV4XuH/Reu1uL+CjvKUZ2xKXic/RIAL1dKxnIa0EuAB8AWw+SaZ2IjJx/cRKpJOWehEQmgFNdJ8eKIIb+OHiY7sHxlkkueAc0krRR7wnGGxv5PoNzPOcWXR5p1PGElipy+aAGncg0uVYYo44t5d8AbYY3wvVoLzOQLViMshZLBI5sW9bYPaRcVWr roland@roland-gaming"
+		}
+	}
+}
