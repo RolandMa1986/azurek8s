@@ -234,27 +234,6 @@
 				]
 			}
 		},
-		// {
-		// 	"type": "Microsoft.Network/publicIPAddresses",
-		// 	"apiVersion": "2019-11-01",
-		// 	"name": "[concat(parameters('vmNamePrefix'),copyindex(),'IP')]",
-		// 	"location": "[parameters('location')]",
-		// 	"copy": {
-		// 		"name": "nicLoop",
-		// 		"count": "[parameters('defaultMasterCount')]"
-		// 	},
-		// 	"sku": {
-		// 		"name":"Standard"
-		// 	},
-		// 	"properties": {
-		// 		"publicIPAllocationMethod": "Static",
-		// 		"publicIPAddressVersion": "IPv4",
-		// 		"dnsSettings": {
-		// 			"domainNameLabel": "[concat(parameters('dnsLabelPrefix'), copyindex())]"
-		// 		},
-		// 		"idleTimeoutInMinutes": 10
-		// 	}
-		// },
 		{
 			"type": "Microsoft.Network/networkInterfaces",
 			"apiVersion": "2019-11-01",
@@ -276,9 +255,6 @@
 							"subnet": {
 								"id": "[variables('subnetRef')]"
 							},
-							// "publicIPAddress": {
-                            //     "id": "[resourceId('Microsoft.Network/publicIPAddresses',concat(parameters('vmNamePrefix'),copyindex(),'IP'))]"
-                            // },
 							"loadBalancerBackendAddressPools": [
 								{
 									"id": "[concat(variables('publicLBID'), '/backendAddressPools/BackendPoolMaster')]"
