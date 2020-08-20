@@ -5,21 +5,26 @@ metadata:
   name: config-sample
 spec:
   hosts:
-  - {name: master-0, address: 10.0.1.4, internalAddress: 10.0.1.4, user: kubesphere, privateKeyPath: "~/.ssh/id_rsa2"}
-  - {name: node000000, address: 10.0.0.4, internalAddress: 10.0.0.4, user: kubesphere, privateKeyPath: "~/.ssh/id_rsa2"}
-  - {name: node000001, address: 10.0.0.5, internalAddress: 10.0.0.5, user: kubesphere, privateKeyPath: "~/.ssh/id_rsa2"}
-  - {name: node000002, address: 10.0.0.6, internalAddress: 10.0.0.6, user: kubesphere, privateKeyPath: "~/.ssh/id_rsa2"}
+  - {name: master-0, address: 40.81.5.xx, port: 50200, internalAddress: 10.0.1.4, user: kubesphere, privateKeyPath: "~/.ssh/id_rsa2"}
+  - {name: master-1, address: 40.81.5.xx, port: 50201, internalAddress: 10.0.1.4, user: kubesphere, privateKeyPath: "~/.ssh/id_rsa2"}
+  - {name: master-2, address: 40.81.5.xx, port: 50202, internalAddress: 10.0.1.4, user: kubesphere, privateKeyPath: "~/.ssh/id_rsa2"}
+  - {name: node000000, address: 40.81.5.xx, port: 50100, internalAddress: 10.0.0.4, user: kubesphere, privateKeyPath: "~/.ssh/id_rsa2"}
+  - {name: node000001, address: 40.81.5.xx, port: 50101, internalAddress: 10.0.0.5, user: kubesphere, privateKeyPath: "~/.ssh/id_rsa2"}
+  - {name: node000002, address: 40.81.5.xx, port: 50102, internalAddress: 10.0.0.6, user: kubesphere, privateKeyPath: "~/.ssh/id_rsa2"}
   roleGroups:
     etcd:
     - master-0
     master:
     - master-0
+    - master-1
+    - master-2
     worker:
     - node000000
     - node000001
+    - node000002
   controlPlaneEndpoint:
     domain: lb.kubesphere.local
-    address: "10.0.1.4"
+    address: "40.81.5.xx"
     port: "6443"
   kubernetes:
     version: v1.17.9

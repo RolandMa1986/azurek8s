@@ -37,14 +37,14 @@
 		},
 		"defaultMasterCount": {
 			"type": "int",
-			"defaultValue": 1,
+			"defaultValue": 3,
 			"metadata": {
 				"description": "The default instances count of master"
 			}
 		},
 		"defaultNodeCount": {
 			"type": "int",
-			"defaultValue": 1,
+			"defaultValue": 3,
 			"metadata": {
 				"description": "The initial node size of your VMSS cluster."
 			}
@@ -110,6 +110,7 @@
 		"publicIPAddressName": "[concat(parameters('publicLBName'), 'IP' )]",
 		"availabilitySetName": "master-AvSet",
 		"networkInterfaceName": "[concat(parameters('vmNamePrefix'),'Interface')]",
+		"networkSecurityGroupName": "[concat(parameters('virtualNetworkName'),'nsg-default')]",
 		"subnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), parameters('subnetName'))]",
 		"vmssSubnetRef": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), parameters('vmssSubnetName'))]",
 		"osDiskType": "Standard_LRS",
@@ -117,10 +118,94 @@
 	},
 	"resources": [
 		{
+			"apiVersion": "2015-06-15",
+			"type": "Microsoft.Network/networkSecurityGroups",
+			"name": "[variables('networkSecurityGroupName')]",
+			"location": "[parameters('location')]",
+			"properties": {
+				"securityRules": [
+                    {
+                        "name": "Port_SSH",
+                        "properties": {
+                            "description": "SSH",
+                            "protocol": "*",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "Port_API_Server",
+                        "properties": {
+                            "description": "k8s API Server",
+                            "protocol": "TCP",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "6443",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 140,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "Port_Http",
+                        "properties": {
+                            "description": "Web",
+                            "protocol": "TCP",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "80",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 120,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    },
+                    {
+                        "name": "Port_Https",
+                        "properties": {
+                            "protocol": "TCP",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "443",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "*",
+                            "access": "Allow",
+                            "priority": 130,
+                            "direction": "Inbound",
+                            "sourcePortRanges": [],
+                            "destinationPortRanges": [],
+                            "sourceAddressPrefixes": [],
+                            "destinationAddressPrefixes": []
+                        }
+                    }
+				]
+			}
+		},
+		{
 			"type": "Microsoft.Network/virtualNetworks",
 			"apiVersion": "2019-11-01",
 			"name": "[parameters('virtualNetworkName')]",
 			"location": "[parameters('location')]",
+			"dependsOn": [
+				"[resourceId('Microsoft.Network/networkSecurityGroups/', variables('networkSecurityGroupName'))]"
+			],
 			"properties": {
 				"addressSpace": {
 					"addressPrefixes": [
@@ -131,36 +216,45 @@
 					{
 						"name": "[parameters('vmssSubnetName')]",
 						"properties": {
+							"networkSecurityGroup": {
+								"id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]"
+							},
 							"addressPrefix": "10.0.0.0/24"
 						}
 					},
 					{
 						"name": "[parameters('subnetName')]",
 						"properties": {
+							"networkSecurityGroup": {
+								"id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('networkSecurityGroupName'))]"
+							},
 							"addressPrefix": "10.0.1.0/24"
 						}
 					}
 				]
 			}
 		},
-		{
-			"type": "Microsoft.Network/publicIPAddresses",
-			"apiVersion": "2019-11-01",
-			"name": "[concat(parameters('vmNamePrefix'),copyindex(),'IP')]",
-			"location": "[parameters('location')]",
-			"copy": {
-				"name": "nicLoop",
-				"count": "[parameters('defaultMasterCount')]"
-			},
-			"properties": {
-				"publicIPAllocationMethod": "Dynamic",
-				"publicIPAddressVersion": "IPv4",
-				"dnsSettings": {
-					"domainNameLabel": "[concat(parameters('dnsLabelPrefix'), copyindex())]"
-				},
-				"idleTimeoutInMinutes": 10
-			}
-		},
+		// {
+		// 	"type": "Microsoft.Network/publicIPAddresses",
+		// 	"apiVersion": "2019-11-01",
+		// 	"name": "[concat(parameters('vmNamePrefix'),copyindex(),'IP')]",
+		// 	"location": "[parameters('location')]",
+		// 	"copy": {
+		// 		"name": "nicLoop",
+		// 		"count": "[parameters('defaultMasterCount')]"
+		// 	},
+		// 	"sku": {
+		// 		"name":"Standard"
+		// 	},
+		// 	"properties": {
+		// 		"publicIPAllocationMethod": "Static",
+		// 		"publicIPAddressVersion": "IPv4",
+		// 		"dnsSettings": {
+		// 			"domainNameLabel": "[concat(parameters('dnsLabelPrefix'), copyindex())]"
+		// 		},
+		// 		"idleTimeoutInMinutes": 10
+		// 	}
+		// },
 		{
 			"type": "Microsoft.Network/networkInterfaces",
 			"apiVersion": "2019-11-01",
@@ -172,7 +266,7 @@
 			},
 			"dependsOn": [
 				"[resourceId('Microsoft.Network/virtualNetworks/', parameters('virtualNetworkName'))]",
-				"[resourceId('Microsoft.Network/publicIPAddresses',concat(parameters('vmNamePrefix'),copyindex(),'IP'))]"
+				"[resourceId('Microsoft.Network/loadBalancers/', parameters('publicLBName'))]"
 			],
 			"properties": {
 				"ipConfigurations": [
@@ -182,10 +276,20 @@
 							"subnet": {
 								"id": "[variables('subnetRef')]"
 							},
-							"privateIPAllocationMethod": "Dynamic",
-							"publicIPAddress": {
-                                "id": "[resourceId('Microsoft.Network/publicIPAddresses',concat(parameters('vmNamePrefix'),copyindex(),'IP'))]"
-                            }
+							// "publicIPAddress": {
+                            //     "id": "[resourceId('Microsoft.Network/publicIPAddresses',concat(parameters('vmNamePrefix'),copyindex(),'IP'))]"
+                            // },
+							"loadBalancerBackendAddressPools": [
+								{
+									"id": "[concat(variables('publicLBID'), '/backendAddressPools/BackendPoolMaster')]"
+								}
+							],
+							"loadBalancerInboundNatRules": [
+								{
+									"id": "[concat(variables('publicLBID'), '/inboundNatRules/lbNAT-master',copyindex())]"
+								}
+							],
+							"privateIPAllocationMethod": "Dynamic"
 						}
 					}
 				]
@@ -193,11 +297,14 @@
 		},
 		{
 			"type": "Microsoft.Network/publicIPAddresses",
-			"apiVersion": "2019-11-01",
+			"apiVersion": "2019-09-01",
 			"name": "[variables('publicIPAddressName')]",
 			"location": "[parameters('location')]",
+			"sku": {
+				"name":"Standard"
+			},
 			"properties": {
-				"publicIPAllocationMethod": "Dynamic",
+				"publicIPAllocationMethod": "Static",
 				"publicIPAddressVersion": "IPv4",
 				"dnsSettings": {
 					"domainNameLabel": "[parameters('dnsLabelPrefix')]"
@@ -210,6 +317,9 @@
 			"name": "[parameters('publicLBName')]",
 			"type": "Microsoft.Network/loadBalancers",
 			"location": "[parameters('location')]",
+			"sku": {
+				"name":"Standard"
+			},
 			"dependsOn": [
 				"[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPAddressName'))]"
 			],
@@ -225,41 +335,123 @@
 				}
 				],
 				"backendAddressPools": [
-				{
-					"name": "BackendPoolNode"
-				}
+					{
+						"name": "BackendPoolNode"
+					},
+									{
+						"name": "BackendPoolMaster"
+					}
 				],
 				"loadBalancingRules": [
-				{
-					"name": "LBRule",
-					"properties": {
-					"frontendIPConfiguration": {
-						"id": "[concat(variables('publicLBID'),'/frontendIPConfigurations/LoadBalancerFrontEnd')]"
+					{
+						"name": "HttpLBRule",
+						"properties": {
+							"frontendIPConfiguration": {
+								"id": "[concat(variables('publicLBID'),'/frontendIPConfigurations/LoadBalancerFrontEnd')]"
+							},
+							"backendAddressPool": {
+								"id": "[concat(variables('publicLBID'),'/backendAddressPools/BackendPoolNode')]"
+							},
+							"protocol": "Tcp",
+							"frontendPort": 80,
+							"backendPort": 80,
+							"enableFloatingIP": false,
+							"disableOutboundSnat": false,
+							"idleTimeoutInMinutes": 5,
+							"probe": {
+								"id": "[concat(variables('publicLBID'),'/probes/tcpProbe')]"
+							}
+						}
 					},
-					"backendAddressPool": {
-						"id": "[concat(variables('publicLBID'),'/backendAddressPools/BackendPoolNode')]"
-					},
-					"protocol": "Tcp",
-					"frontendPort": 80,
-					"backendPort": 80,
-					"enableFloatingIP": false,
-					"idleTimeoutInMinutes": 5,
-					"probe": {
-						"id": "[concat(variables('publicLBID'),'/probes/tcpProbe')]"
+					{
+						"name": "APILBRule",
+						"properties": {
+							"frontendIPConfiguration": {
+								"id": "[concat(variables('publicLBID'),'/frontendIPConfigurations/LoadBalancerFrontEnd')]"
+							},
+							"backendAddressPool": {
+								"id": "[concat(variables('publicLBID'),'/backendAddressPools/BackendPoolMaster')]"
+							},
+							"protocol": "Tcp",
+							"frontendPort": 6443,
+							"backendPort": 6443,
+							"enableFloatingIP": false,
+							"disableOutboundSnat": false,
+							"idleTimeoutInMinutes": 5,
+							"probe": {
+								"id": "[concat(variables('publicLBID'),'/probes/apitcpProbe')]"
+							}
+						}
 					}
-					}
-				}
 				],
 				"probes": [
-				{
-					"name": "tcpProbe",
-					"properties": {
-					"protocol": "Tcp",
-					"port": 80,
-					"intervalInSeconds": 5,
-					"numberOfProbes": 2
+					{
+						"name": "tcpProbe",
+						"properties": {
+						"protocol": "Tcp",
+						"port": 80,
+						"intervalInSeconds": 5,
+						"numberOfProbes": 2
+						}
+					},
+					{
+						"name": "apitcpProbe",
+						"properties": {
+						"protocol": "Tcp",
+						"port": 6443,
+						"intervalInSeconds": 5,
+						"numberOfProbes": 2
+						}
 					}
-				}
+				],
+				"inboundNatRules": [
+					{
+					"name": "lbNAT-master0",
+					"properties": {
+						"frontendIPConfiguration": {
+								"id": "[concat(variables('publicLBID'),'/frontendIPConfigurations/LoadBalancerFrontEnd')]"
+							},
+							"protocol": "Tcp",
+							"frontendPort": "50200",
+							"backendPort": "22"
+						}
+					},
+					{
+					"name": "lbNAT-master1",
+					"properties": {
+						"frontendIPConfiguration": {
+								"id": "[concat(variables('publicLBID'),'/frontendIPConfigurations/LoadBalancerFrontEnd')]"
+							},
+							"protocol": "Tcp",
+							"frontendPort": "50201",
+							"backendPort": "22"
+						}
+					},
+					{
+					"name": "lbNAT-master2",
+					"properties": {
+						"frontendIPConfiguration": {
+								"id": "[concat(variables('publicLBID'),'/frontendIPConfigurations/LoadBalancerFrontEnd')]"
+							},
+							"protocol": "Tcp",
+							"frontendPort": "50202",
+							"backendPort": "22"
+						}
+					}
+				],
+				"inboundNatPools": [
+					{
+						"name": "lbNAT-node",
+						"properties": {
+							"frontendIPConfiguration": {
+								"id": "[concat(variables('publicLBID'),'/frontendIPConfigurations/LoadBalancerFrontEnd')]"
+							},
+							"protocol": "Tcp",
+							"frontendPortRangeStart": 50100,
+							"frontendPortRangeEnd": 50199,
+							"backendPort": 22
+						}
+					}
 				]
 			}
 		},
@@ -404,7 +596,12 @@
 												},
 												"loadBalancerBackendAddressPools": [
 													{
-													"id": "[concat(variables('publicLBID'), '/backendAddressPools/BackendPoolNode')]"
+														"id": "[concat(variables('publicLBID'), '/backendAddressPools/BackendPoolNode')]"
+													}
+												],
+												"loadBalancerInboundNatPools": [
+													{
+														"id": "[concat(variables('publicLBID'), '/inboundNatPools/lbNAT-node')]"
 													}
 												]
 											}
